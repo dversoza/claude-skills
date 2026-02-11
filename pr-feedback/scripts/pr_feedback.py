@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 """PR review feedback CLI for the pr-feedback skill.
 
-Global options (apply to all subcommands):
-    --repo OWNER/REPO   Target repository (default: auto-detect from cwd)
-    --pr NUMBER         Target PR number (default: auto-detect from current branch)
-
 Fetch commands (read-only):
-    threads   Fetch unresolved inline review threads
-    ci        Fetch CI check status and failed check details
-    comments  Fetch general PR comments and PR description
+    threads   [--repo OWNER/REPO] [--pr NUMBER]  Fetch unresolved inline review threads
+    ci        [--repo OWNER/REPO] [--pr NUMBER]  Fetch CI check status and failed check details
+    comments  [--repo OWNER/REPO] [--pr NUMBER]  Fetch general PR comments and PR description
 
 Action commands (write):
     resolve THREAD_ID               Mark a review thread as resolved
     react   TYPE DATABASE_ID        Add thumbs-up (TYPE: review|issue)
     reply   DATABASE_ID BODY        Reply to a review thread comment
     comment BODY                    Leave a general PR comment
+
+--repo and --pr are optional flags available on every subcommand.
+They default to auto-detection from the current working directory and branch.
 """
 
 import argparse
@@ -322,9 +321,9 @@ def cmd_reply(args):
     pr_number = get_pr_number(args.pr, slug)
 
     result = json.loads(run_gh(
-        "api", f"repos/{owner}/{repo}/pulls/{pr_number}/comments",
+        "api",
+        f"repos/{owner}/{repo}/pulls/{pr_number}/comments/{args.database_id}/replies",
         "-f", f"body={args.body}",
-        "-F", f"in_reply_to={args.database_id}",
     ))
     _output({
         "database_id": args.database_id,
@@ -350,42 +349,44 @@ def cmd_comment(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="PR review feedback CLI",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
+    shared = argparse.ArgumentParser(add_help=False)
+    shared.add_argument(
         "--repo",
         help="Target repository as OWNER/REPO (default: auto-detect from cwd)",
     )
-    parser.add_argument(
+    shared.add_argument(
         "--pr", type=int,
         help="Target PR number (default: auto-detect from current branch)",
+    )
+
+    parser = argparse.ArgumentParser(
+        description="PR review feedback CLI",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     sub = parser.add_subparsers(dest="command", required=True)
 
     # Fetch commands
-    sub.add_parser("threads", help="Fetch unresolved inline review threads")
-    sub.add_parser("ci", help="Fetch CI check status")
-    sub.add_parser("comments", help="Fetch general PR comments and description")
+    sub.add_parser("threads", help="Fetch unresolved inline review threads", parents=[shared])
+    sub.add_parser("ci", help="Fetch CI check status", parents=[shared])
+    sub.add_parser("comments", help="Fetch general PR comments and description", parents=[shared])
 
     # Action commands
-    p_resolve = sub.add_parser("resolve", help="Resolve a review thread")
+    p_resolve = sub.add_parser("resolve", help="Resolve a review thread", parents=[shared])
     p_resolve.add_argument("thread_id", help="GraphQL node ID of the thread")
 
-    p_react = sub.add_parser("react", help="Add thumbs-up reaction")
+    p_react = sub.add_parser("react", help="Add thumbs-up reaction", parents=[shared])
     p_react.add_argument(
         "comment_type", choices=["review", "issue"],
         help="Comment type (review=inline, issue=general)",
     )
     p_react.add_argument("database_id", help="REST API database ID of the comment")
 
-    p_reply = sub.add_parser("reply", help="Reply to a review thread comment")
+    p_reply = sub.add_parser("reply", help="Reply to a review thread comment", parents=[shared])
     p_reply.add_argument("database_id", help="Database ID of comment to reply to")
     p_reply.add_argument("body", help="Reply text")
 
-    p_comment = sub.add_parser("comment", help="Leave a general PR comment")
+    p_comment = sub.add_parser("comment", help="Leave a general PR comment", parents=[shared])
     p_comment.add_argument("body", help="Comment text")
 
     args = parser.parse_args()
