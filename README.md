@@ -22,6 +22,7 @@ The assistant will automatically detect skills placed in `~/.claude/skills/` on 
 | Skill | Description |
 |-------|-------------|
 | [pr-feedback](pr-feedback/) | Fetch and address PR review feedback, CI failures, and bot-generated reviews |
+| [postgres](postgres/) | Read-only PostgreSQL querying, schema introspection, and query planning |
 
 
 ## pr-feedback
@@ -62,3 +63,26 @@ The skill follows a structured workflow when invoked:
 
 - `gh` CLI authenticated with access to the target repository
 - Python 3.6+
+
+
+## postgres
+
+Read-only access to PostgreSQL databases via `psql`. Enforces `default_transaction_read_only=on` at the PostgreSQL session level so writes and DDL are rejected by the server itself.
+
+Database connection URIs are configured per-project in `CLAUDE.local.md` (gitignored) inside a `` ```pg-databases``` `` fenced code block. The script resolves aliases internally so credentials never appear on the command line.
+
+### Subcommands
+
+    python3 ~/.claude/skills/postgres/scripts/pg_query.py list
+    python3 ~/.claude/skills/postgres/scripts/pg_query.py schemas <alias>
+    python3 ~/.claude/skills/postgres/scripts/pg_query.py tables <alias> [--schema NAME]
+    python3 ~/.claude/skills/postgres/scripts/pg_query.py describe <alias> <table>
+    python3 ~/.claude/skills/postgres/scripts/pg_query.py indexes <alias> <table>
+    python3 ~/.claude/skills/postgres/scripts/pg_query.py query <alias> "SELECT ..."
+    python3 ~/.claude/skills/postgres/scripts/pg_query.py explain <alias> "SELECT ..."
+
+### Requirements
+
+- `psql` (PostgreSQL client tools)
+- Python 3.6+
+- Database aliases in a `pg-databases` block in the project's `CLAUDE.local.md`
