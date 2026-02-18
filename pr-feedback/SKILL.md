@@ -9,18 +9,14 @@ Fetch all review feedback and CI status from the PR associated with the current 
 
 All commands auto-detect the repository and PR from the current branch.
 
-```
-SCRIPT=~/.claude/skills/pr-feedback/scripts/pr_feedback.py
-```
-
 ## Step 1: Fetch All Review Feedback
 
 Run the three fetch commands to collect all feedback:
 
 ```bash
-python3 $SCRIPT threads    # unresolved inline review threads
-python3 $SCRIPT ci         # CI check status and failures
-python3 $SCRIPT comments   # general PR comments and PR description
+python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py threads    # unresolved inline review threads
+python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py ci         # CI check status and failures
+python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py comments   # general PR comments and PR description
 ```
 
 If any fails (no PR for current branch, auth issues), report the error and stop.
@@ -119,19 +115,19 @@ Wait for user review of code changes before proceeding to Step 5.
 After the user approves the code changes, propose a response plan. Present the full plan and wait for approval before executing any of it.
 
 ### For Implemented Threads
-- Resolve the thread: `python3 $SCRIPT resolve THREAD_ID`
-- Optionally reply with a brief note about the fix: `python3 $SCRIPT reply DATABASE_ID "Fixed: ..."`
+- Resolve the thread: `python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py resolve THREAD_ID`
+- Optionally reply with a brief note about the fix: `python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py reply DATABASE_ID "Fixed: ..."`
 
 ### For Dismissed Threads
-- Reply with the dismissal explanation: `python3 $SCRIPT reply DATABASE_ID "Explanation..."`
-- Or add a thumbs-up if acknowledged but no change needed: `python3 $SCRIPT react review DATABASE_ID`
+- Reply with the dismissal explanation: `python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py reply DATABASE_ID "Explanation..."`
+- Or add a thumbs-up if acknowledged but no change needed: `python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py react review DATABASE_ID`
 - Skip replying if the comment is clearly noise (bot false positive)
 
 ### For General PR Comments and PR Body Findings
 
 Draft a single follow-up PR comment addressing multiple non-threaded items together:
 ```bash
-python3 $SCRIPT comment "Response text..."
+python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py comment "Response text..."
 ```
 
 Use this for:
@@ -140,7 +136,7 @@ Use this for:
 - Pointing reviewers to the right code if they misread the implementation
 - Summarizing what was fixed vs. what was intentionally left as-is
 
-To react to a general PR comment: `python3 $SCRIPT react issue DATABASE_ID`
+To react to a general PR comment: `python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py react issue DATABASE_ID`
 
 ## Guidelines
 
