@@ -22,8 +22,9 @@ The assistant will automatically detect skills placed in `~/.claude/skills/` on 
 | Skill | Description |
 |-------|-------------|
 | [1password](1password/) | Secure 1Password CLI (op) access patterns for secret retrieval without leakage |
-| [pr-feedback](pr-feedback/) | Fetch and address PR review feedback, CI failures, and bot-generated reviews |
 | [postgres](postgres/) | Read-only PostgreSQL querying, schema introspection, and query planning |
+| [pr-feedback](pr-feedback/) | Fetch and address PR review feedback, CI failures, and bot-generated reviews |
+| [skill-creator](skill-creator/) | Guide for creating effective skills with scaffolding, validation, and style patterns |
 
 
 ## 1password
@@ -99,3 +100,24 @@ Database connection URIs are configured per-project in `CLAUDE.local.md` (gitign
 - `psql` (PostgreSQL client tools)
 - Python 3.6+
 - Database aliases in a `pg-databases` block in the project's `CLAUDE.local.md`
+
+
+## skill-creator
+
+Meta-skill that guides the assistant through building effective skills. Provides a structured creation workflow (understand, plan, scaffold, edit, iterate) along with reference material on proven patterns.
+
+### Scripts
+
+    python3 ~/.claude/skills/skill-creator/scripts/init_skill.py <name> --path <dir>    # scaffold a new skill
+    python3 ~/.claude/skills/skill-creator/scripts/quick_validate.py <skill-dir>         # validate frontmatter and structure
+
+### References
+
+- `references/style-guide.md` -- patterns for frontmatter descriptions, script design, subcommand docs, guidelines sections, output style, and triage workflows
+- `references/workflows.md` -- sequential and conditional workflow patterns
+- `references/output-patterns.md` -- template and example patterns for output formatting
+
+### Requirements
+
+- Python 3.6+
+- `pyyaml` (for `quick_validate.py`)
