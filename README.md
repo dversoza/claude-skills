@@ -21,8 +21,21 @@ The assistant will automatically detect skills placed in `~/.claude/skills/` on 
 
 | Skill | Description |
 |-------|-------------|
+| [1password](1password/) | Secure 1Password CLI (op) access patterns for secret retrieval without leakage |
 | [pr-feedback](pr-feedback/) | Fetch and address PR review feedback, CI failures, and bot-generated reviews |
 | [postgres](postgres/) | Read-only PostgreSQL querying, schema introspection, and query planning |
+
+
+## 1password
+
+Guidance skill that teaches the assistant how to securely read secrets from 1Password using the `op` CLI. No scripts -- it provides security rules, patterns, and anti-patterns that prevent secret leakage into conversation context, terminal output, or environment variables.
+
+Credentials are resolved from 1Password **private links** (right-click an item > "Copy Private Link"). The skill parses the link's URL parameters (`a`=account, `v`=vault, `i`=item) to construct `op read` commands, so no accounts or vault names need to be hardcoded.
+
+### Requirements
+
+- [1Password CLI](https://developer.1password.com/docs/cli/) (`op`) v2+
+- At least one authenticated 1Password account (`op account list`)
 
 
 ## pr-feedback
