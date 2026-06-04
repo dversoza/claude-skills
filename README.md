@@ -25,6 +25,7 @@ The assistant will automatically detect skills placed in `~/.claude/skills/` on 
 | [postgres](postgres/) | Read-only PostgreSQL querying, schema introspection, and query planning |
 | [pr-feedback](pr-feedback/) | Fetch and address PR review feedback, CI failures, and bot-generated reviews |
 | [skill-creator](skill-creator/) | Guide for creating effective skills with scaffolding, validation, and style patterns |
+| [video-analyze](video-analyze/) | Transcribe a local video and extract only the relevant frames for analysis |
 
 
 ## 1password
@@ -121,3 +122,24 @@ Meta-skill that guides the assistant through building effective skills. Provides
 
 - Python 3.6+
 - `pyyaml` (for `quick_validate.py`)
+
+
+## video-analyze
+
+Analyzes a local video without Claude ingesting audio or video directly. It transcribes the whole soundtrack (cheap) and then extracts frames only for the timestamp ranges the model judged relevant, so visual tokens are spent on what matters rather than blindly sampled screenshots.
+
+The pipeline is `transcribe -> model selects ranges -> frames -> model reads transcript + frames`. Built for narrated walkthroughs (PM bug tours, QA repros, screen recordings) but works for any spoken-over footage.
+
+### Subcommands
+
+    python3 ~/.claude/skills/video-analyze/scripts/analyze.py transcribe <video> [--lang pt] [--out DIR]
+    python3 ~/.claude/skills/video-analyze/scripts/analyze.py frames <video> <ranges.json> [--pre 2] [--post 5] [--max-per-window 10]
+
+Between the two, the model reads `transcript.srt` and writes a `ranges.json` array of `{start, end, reason}`. Frames are selected on scene change (with a time floor so slow changes are not missed) and capped per window, so the set stays small enough to view in full. Outputs land in `<video>_analysis/` (gitignore it -- it is scratch holding the wav and frames).
+
+### Requirements
+
+- `ffmpeg` / `ffprobe`
+- `whisper-cli` from whisper.cpp (`brew install whisper-cpp`)
+- A ggml model at `~/.cache/whisper/ggml-large-v3-turbo.bin` or `WHISPER_MODEL`
+- Python 3.6+
