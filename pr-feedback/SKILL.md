@@ -114,13 +114,26 @@ Wait for user review of code changes before proceeding to Step 5.
 
 After the user approves the code changes, propose a response plan. Present the full plan and wait for approval before executing any of it.
 
+### Response style
+
+Keep replies short, direct, and objective. Prefer "done", "agreed", or a thumbs-up reaction over full sentences. Only write a sentence when there's actual ambiguity or a non-obvious decision to explain. Don't repeat what the reviewer said or over-explain obvious changes.
+
+### ID types
+
+The `threads` output includes two types of IDs per comment -- use the right one for each command:
+- `thread_id` (e.g. `PRRT_kwDO...`): used with `resolve`
+- `database_id` (e.g. `3058826573`): used with `reply` and `react`
+
 ### For Implemented Threads
+- For simple/obvious fixes: thumbs-up reaction + resolve (no reply needed)
+- For non-trivial changes: reply "done!" + resolve
+- Only explain what you did when the change wasn't what the reviewer literally asked for
+- Reply to a comment: `python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py reply DATABASE_ID "reply text"`
 - Resolve the thread: `python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py resolve THREAD_ID`
-- Optionally reply with a brief note about the fix: `python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py reply DATABASE_ID "Fixed: ..."`
 
 ### For Dismissed Threads
-- Reply with the dismissal explanation: `python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py reply DATABASE_ID "Explanation..."`
-- Or add a thumbs-up if acknowledged but no change needed: `python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py react review DATABASE_ID`
+- Reply with a short dismissal reason only if the reviewer might not understand why
+- Thumbs-up if acknowledged but no change needed: `python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py react review DATABASE_ID`
 - Skip replying if the comment is clearly noise (bot false positive)
 
 ### For General PR Comments and PR Body Findings
