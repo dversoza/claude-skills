@@ -259,6 +259,17 @@ def cmd_tasks_create(args):
         body["due_on"] = args.due
     if args.assignee:
         body["assignee"] = args.assignee
+    if args.parent:
+        # A subtask inherits its home from the parent; project/workspace ignored.
+        _output(
+            _request(
+                "POST",
+                f"/tasks/{args.parent}/subtasks",
+                params={"opt_fields": GET_FIELDS},
+                body=body,
+            )
+        )
+        return
     if args.project:
         body["projects"] = [args.project]
     else:
@@ -290,9 +301,54 @@ def cmd_tasks_update(args):
         _request("POST", f"/tasks/{args.gid}/addProject", body={"project": project})
     for project in args.remove_project or []:
         _request("POST", f"/tasks/{args.gid}/removeProject", body={"project": project})
-    if result is None or args.add_project or args.remove_project:
+    if args.add_follower:
+        _request(
+            "POST", f"/tasks/{args.gid}/addFollowers", body={"followers": args.add_follower}
+        )
+    if args.remove_follower:
+        _request(
+            "POST",
+            f"/tasks/{args.gid}/removeFollowers",
+            body={"followers": args.remove_follower},
+        )
+    membership_changed = (
+        args.add_project or args.remove_project or args.add_follower or args.remove_follower
+    )
+    if result is None or membership_changed:
         result = _request("GET", f"/tasks/{args.gid}", params={"opt_fields": GET_FIELDS})
     _output(result)
+
+
+def cmd_tasks_reorder(args):
+    """Reorder a parent's subtasks into the given top-to-bottom gid order."""
+    order = [g.strip() for g in args.order.split(",") if g.strip()]
+    if not order:
+        raise AsanaError("--order must be a comma-separated list of subtask gids.")
+    current = _request(
+        "GET", f"/tasks/{args.parent}/subtasks", params={"opt_fields": "name"}
+    )
+    # Anchor the first item at the top (unless already there), then chain the rest.
+    if current and current[0]["gid"] != order[0]:
+        _request(
+            "POST",
+            f"/tasks/{order[0]}/setParent",
+            body={"parent": args.parent, "insert_before": current[0]["gid"]},
+        )
+    prev = order[0]
+    for gid in order[1:]:
+        _request(
+            "POST",
+            f"/tasks/{gid}/setParent",
+            body={"parent": args.parent, "insert_after": prev},
+        )
+        prev = gid
+    _output(
+        _request(
+            "GET",
+            f"/tasks/{args.parent}/subtasks",
+            params={"opt_fields": "name,completed"},
+        )
+    )
 
 
 def cmd_api(args):
@@ -361,9 +417,12 @@ def build_parser():
     p_get.add_argument("--fields", help="Comma-separated opt_fields override")
     p_get.set_defaults(func=cmd_tasks_get)
 
-    p_create = tsub.add_parser("create", help="Create a task")
+    p_create = tsub.add_parser("create", help="Create a task or subtask")
     p_create.add_argument("--name", required=True, help="Task title")
     p_create.add_argument("--notes", help="Task description")
+    p_create.add_argument(
+        "--parent", help="Parent task gid (creates a subtask; project/workspace ignored)"
+    )
     p_create.add_argument("--project", help="Project gid (task is added to it)")
     p_create.add_argument("--workspace", help="Workspace gid (if no --project)")
     p_create.add_argument("--assignee", help="Assignee ('me' or user gid)")
@@ -380,10 +439,23 @@ def build_parser():
     p_update.add_argument(
         "--remove-project", action="append", help="Remove task from project gid"
     )
+    p_update.add_argument(
+        "--add-follower", action="append", help="Add a follower (user gid, repeatable)"
+    )
+    p_update.add_argument(
+        "--remove-follower", action="append", help="Remove a follower (user gid, repeatable)"
+    )
     completion = p_update.add_mutually_exclusive_group()
     completion.add_argument("--complete", action="store_true", help="Mark completed")
     completion.add_argument("--incomplete", action="store_true", help="Mark incomplete")
     p_update.set_defaults(func=cmd_tasks_update)
+
+    p_reorder = tsub.add_parser("reorder", help="Reorder a parent's subtasks")
+    p_reorder.add_argument("--parent", required=True, help="Parent task gid")
+    p_reorder.add_argument(
+        "--order", required=True, help="Comma-separated subtask gids, top to bottom"
+    )
+    p_reorder.set_defaults(func=cmd_tasks_reorder)
 
     p_api = sub.add_parser("api", help="Call any Asana REST endpoint (escape hatch)")
     p_api.add_argument("--path", required=True, help="Endpoint path, e.g. /projects/123")

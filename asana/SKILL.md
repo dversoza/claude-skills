@@ -55,12 +55,15 @@ asana tasks list --assignee me [--include-completed] [--limit N]   # my tasks
 asana tasks list --project GID [--include-completed] [--limit N]   # a project's tasks
 asana tasks get --gid GID [--fields a,b,c]
 
-asana tasks create --name "..." [--notes "..."] [--project GID]
+asana tasks create --name "..." [--notes "..."] [--parent GID] [--project GID]
                    [--workspace GID] [--assignee me] [--due YYYY-MM-DD]
 
 asana tasks update --gid GID [--name "..."] [--notes "..."] [--due YYYY-MM-DD]
                    [--assignee me] [--add-project GID] [--remove-project GID]
+                   [--add-follower GID] [--remove-follower GID]
                    [--complete | --incomplete]
+
+asana tasks reorder --parent GID --order gid1,gid2,gid3    # order subtasks top->bottom
 
 # Escape hatch: call any Asana REST endpoint not covered above
 asana api --path /PATH [--method GET|POST|PUT|PATCH] [--query k=v ...] [--data '<json>']
@@ -87,7 +90,13 @@ or dotted paths like `--fields "projects.name,memberships.section.name"`).
 
 Updates are sparse — only the flags you pass change. Clear the due date with
 `--due ''`. Project membership is managed with `--add-project` /
-`--remove-project` (Asana does not let you set `projects` via a plain update).
+`--remove-project`, and collaborators with `--add-follower` / `--remove-follower`
+(Asana does not let you set `projects` or `followers` via a plain update).
+
+Create a subtask with `asana tasks create --parent GID --name "..."`. Asana adds
+each new subtask to the top of the list, so when creating several in sequence
+their order ends up reversed; fix it with
+`asana tasks reorder --parent GID --order gid1,gid2,...` (top to bottom).
 
 Completing a task is `asana tasks update --gid GID --complete`. This is the
 safest way to "remove" a task from active lists; the CLI never hard-deletes.

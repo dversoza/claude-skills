@@ -111,8 +111,9 @@ Unlike the other skills, this one ships a `uv`-installable package under `cli/`:
     asana tasks list --assignee me [--include-completed] [--limit N]
     asana tasks list --project GID [--include-completed] [--limit N]
     asana tasks get --gid GID [--fields a,b,c]
-    asana tasks create --name "..." [--notes ...] [--project GID] [--assignee me] [--due YYYY-MM-DD]
-    asana tasks update --gid GID [--name ...] [--due ...] [--add-project GID] [--complete]
+    asana tasks create --name "..." [--notes ...] [--parent GID] [--project GID] [--assignee me] [--due YYYY-MM-DD]
+    asana tasks update --gid GID [--name ...] [--due ...] [--add-project GID] [--add-follower GID] [--complete]
+    asana tasks reorder --parent GID --order gid1,gid2,gid3
     asana api --path /PATH [--method GET|POST|PUT|PATCH] [--query k=v ...] [--data '<json>']
 
 `asana api` is an escape hatch to any Asana REST endpoint (metadata, sections,
