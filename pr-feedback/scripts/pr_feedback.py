@@ -84,6 +84,7 @@ query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
           line
           startLine
           comments(first: 100) {
+            pageInfo { hasNextPage endCursor }
             nodes {
               id
               databaseId
@@ -99,6 +100,47 @@ query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
   }
 }
 """
+
+
+THREAD_COMMENTS_QUERY = """
+query($threadId: ID!, $cursor: String) {
+  node(id: $threadId) {
+    ... on PullRequestReviewThread {
+      comments(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id
+          databaseId
+          body
+          author { login }
+          createdAt
+          diffHunk
+        }
+      }
+    }
+  }
+}
+"""
+
+
+def _fetch_remaining_thread_comments(thread_id, cursor):
+    """Page through the tail of a thread whose comments exceeded the first page.
+
+    The newest comment carries the current ask, so truncating a long
+    back-and-forth silently drops the only part that still matters.
+    """
+    extra = []
+    while cursor:
+        data = json.loads(run_gh(
+            "api", "graphql",
+            "-f", f"query={THREAD_COMMENTS_QUERY}",
+            "-f", f"threadId={thread_id}",
+            "-f", f"cursor={cursor}",
+        ))
+        page = data["data"]["node"]["comments"]
+        extra.extend(page["nodes"])
+        cursor = page["pageInfo"]["endCursor"] if page["pageInfo"]["hasNextPage"] else None
+    return extra
 
 
 def cmd_threads(args):
@@ -132,6 +174,13 @@ def cmd_threads(args):
 
     threads = []
     for t in all_threads:
+        comment_nodes = list(t["comments"]["nodes"])
+        page_info = t["comments"]["pageInfo"]
+        if page_info["hasNextPage"]:
+            comment_nodes.extend(
+                _fetch_remaining_thread_comments(t["id"], page_info["endCursor"])
+            )
+
         threads.append({
             "thread_id": t["id"],
             "path": t["path"],
@@ -147,7 +196,7 @@ def cmd_threads(args):
                     "diff_hunk": c["diffHunk"],
                     "created_at": c["createdAt"],
                 }
-                for c in t["comments"]["nodes"]
+                for c in comment_nodes
             ],
         })
 
