@@ -222,8 +222,16 @@ def cmd_ci(args):
         if slug:
             cmd.extend(["--repo", slug])
         raw = run_gh(*cmd)
-    except subprocess.CalledProcessError:
-        _output({"pr_number": pr_number, "ci_summary": {}, "failed_checks": []})
+    except subprocess.CalledProcessError as e:
+        # An empty result is ambiguous on its own: a PR with no CI configured and
+        # a failed fetch both produce zero checks. Surface why, so a broken token
+        # is never reported as a clean build.
+        _output({
+            "pr_number": pr_number,
+            "ci_summary": {},
+            "failed_checks": [],
+            "error": e.stderr.strip() or "gh pr checks failed with no output",
+        })
         return
 
     checks = json.loads(raw)

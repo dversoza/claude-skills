@@ -23,7 +23,7 @@ If any fails (no PR for current branch, auth issues), report the error and stop.
 
 `threads` returns `unresolved_threads` with thread_id, path, line, and comments (each with node_id, database_id, diff_hunk).
 
-`ci` returns `ci_summary` (pass/fail/pending counts) and `failed_checks` (with run_id, job_id for log fetching).
+`ci` returns `ci_summary` (pass/fail/pending counts) and `failed_checks` (with run_id, job_id for log fetching). On a failed fetch it returns empty counts plus an `error` field -- see Step 3.
 
 `comments` returns `pr_body` (may contain bot-appended review content), `pr_comments` (each with node_id, database_id), and `pr_author`.
 
@@ -77,6 +77,8 @@ Flag any findings that are factually incorrect (hallucinations). These need corr
 ## Step 3: Address CI Failures
 
 If `ci_summary.failed` is 0, skip this step.
+
+If `ci` returned an `error` field, no check data was retrieved. An empty result does not mean the build is clean, so never report it as passing. `no checks reported on the '<branch>' branch` means the PR genuinely has no CI configured -- say so and move on. Anything else is a fetch failure: report it verbatim and treat CI status as unknown.
 
 For each entry in `failed_checks`, fetch the failed job logs:
 
