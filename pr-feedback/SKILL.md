@@ -152,3 +152,4 @@ To react to a general PR comment: `python3 ~/.claude/skills/pr-feedback/scripts/
 - Respect the codebase's project instructions (CLAUDE.md) when evaluating comments.
 - When drafting response text, keep it factual and concise. Do not be defensive or dismissive.
 - When correcting hallucinated findings, be specific: quote what the reviewer claimed, explain what actually happens, and point to the relevant code.
+- The skill may be run repeatedly on the same PR as review rounds continue. A thread stays unresolved until someone resolves it, so a thread handled on an earlier run will appear again. Before acting on one, check whether the newest comment is already your reply or the PR author's: if so, the ask was likely answered and the thread is only awaiting the reviewer. Re-state it in the summary rather than implementing the same change twice.
