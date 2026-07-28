@@ -8,7 +8,8 @@ Fetch commands (read-only):
 
 Action commands (write):
     resolve THREAD_ID               Mark a review thread as resolved
-    react   TYPE DATABASE_ID        Add thumbs-up (TYPE: review|issue)
+    react   TYPE DATABASE_ID        Add a reaction (TYPE: review|issue)
+                                    [--content +1|eyes|...] (default: +1)
     reply   DATABASE_ID BODY        Reply to a review thread comment
     comment BODY                    Leave a general PR comment
 
@@ -364,6 +365,11 @@ def cmd_resolve(args):
 # ── Action: react ─────────────────────────────────────────────────────
 
 
+REACTION_CONTENTS = [
+    "+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes",
+]
+
+
 def cmd_react(args):
     owner, repo = get_repo_info(args.repo)
     db_id = args.database_id
@@ -373,8 +379,8 @@ def cmd_react(args):
     else:
         endpoint = f"repos/{owner}/{repo}/issues/comments/{db_id}/reactions"
 
-    result = json.loads(run_gh("api", endpoint, "-f", "content=+1"))
-    _output({"database_id": db_id, "reaction": result.get("content", "+1")})
+    result = json.loads(run_gh("api", endpoint, "-f", f"content={args.content}"))
+    _output({"database_id": db_id, "reaction": result.get("content", args.content)})
 
 
 # ── Action: reply ─────────────────────────────────────────────────────
@@ -440,12 +446,16 @@ def main():
     p_resolve = sub.add_parser("resolve", help="Resolve a review thread", parents=[shared])
     p_resolve.add_argument("thread_id", help="GraphQL node ID of the thread")
 
-    p_react = sub.add_parser("react", help="Add thumbs-up reaction", parents=[shared])
+    p_react = sub.add_parser("react", help="Add a reaction to a comment", parents=[shared])
     p_react.add_argument(
         "comment_type", choices=["review", "issue"],
         help="Comment type (review=inline, issue=general)",
     )
     p_react.add_argument("database_id", help="REST API database ID of the comment")
+    p_react.add_argument(
+        "--content", choices=REACTION_CONTENTS, default="+1",
+        help="Reaction to add (default: +1)",
+    )
 
     p_reply = sub.add_parser("reply", help="Reply to a review thread comment", parents=[shared])
     p_reply.add_argument("database_id", help="Database ID of comment to reply to")

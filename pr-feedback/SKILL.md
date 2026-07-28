@@ -125,6 +125,8 @@ After the user approves the code changes, propose a response plan. Present the f
 - Or add a thumbs-up if acknowledged but no change needed: `python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py react review DATABASE_ID`
 - Skip replying if the comment is clearly noise (bot false positive)
 
+`react` takes an optional `--content` (`+1`, `-1`, `laugh`, `confused`, `heart`, `hooray`, `rocket`, `eyes`), defaulting to `+1`. Use `--content eyes` for items in the Ask bucket: it signals the comment was seen and is pending a decision, which `+1` wrongly reads as agreement.
+
 ### For General PR Comments and PR Body Findings
 
 Draft a single follow-up PR comment addressing multiple non-threaded items together:
