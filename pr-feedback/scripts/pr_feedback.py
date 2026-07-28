@@ -342,13 +342,21 @@ def cmd_comments(args):
 # ── Action: resolve ───────────────────────────────────────────────────
 
 
+RESOLVE_MUTATION = """
+mutation($threadId: ID!) {
+  resolveReviewThread(input: {threadId: $threadId}) {
+    thread { isResolved }
+  }
+}
+"""
+
+
 def cmd_resolve(args):
-    mutation = (
-        'mutation { resolveReviewThread(input: {threadId: "'
-        + args.thread_id
-        + '"}) { thread { isResolved } } }'
-    )
-    result = json.loads(run_gh("api", "graphql", "-f", f"query={mutation}"))
+    result = json.loads(run_gh(
+        "api", "graphql",
+        "-f", f"query={RESOLVE_MUTATION}",
+        "-f", f"threadId={args.thread_id}",
+    ))
     resolved = result["data"]["resolveReviewThread"]["thread"]["isResolved"]
     _output({"thread_id": args.thread_id, "resolved": resolved})
 
