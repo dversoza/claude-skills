@@ -5,6 +5,9 @@ Fetch commands (read-only):
     threads   [--repo OWNER/REPO] [--pr NUMBER]  Fetch unresolved inline review threads
     ci        [--repo OWNER/REPO] [--pr NUMBER]  Fetch CI check status and failed check details
     comments  [--repo OWNER/REPO] [--pr NUMBER]  Fetch general PR comments and PR description
+    annotations [--repo OWNER/REPO] [--pr NUMBER]  Fetch check run annotations and code
+                                                   scanning alerts (what GitHub renders
+                                                   inline in the Files changed tab)
 
 Action commands (write):
     resolve THREAD_ID               Mark a review thread as resolved
@@ -61,6 +64,28 @@ def _repo_slug(args):
 
 def _parse_author(node):
     return (node.get("author") or {}).get("login", "unknown")
+
+
+def run_gh_tolerant(*args):
+    """Run gh without raising. Returns (ok, stdout, stderr)."""
+    result = subprocess.run(["gh"] + list(args), capture_output=True, text=True)
+    return result.returncode == 0, result.stdout, result.stderr
+
+
+def paginate_rest(endpoint, extract=None, per_page=100, max_pages=20):
+    """Page through a REST endpoint. `extract` pulls the list out of an object response."""
+    items = []
+    for page in range(1, max_pages + 1):
+        sep = "&" if "?" in endpoint else "?"
+        url = f"{endpoint}{sep}per_page={per_page}&page={page}"
+        data = json.loads(run_gh("api", url))
+        batch = data.get(extract, []) if extract else data
+        if not batch:
+            break
+        items.extend(batch)
+        if len(batch) < per_page:
+            break
+    return items
 
 
 def _output(data):
@@ -204,6 +229,118 @@ def cmd_ci(args):
     })
 
 
+# ── Fetch: annotations ────────────────────────────────────────────────
+
+
+def _fetch_check_run_annotations(owner, repo, head_sha, changed_files):
+    """Collect annotations from every check run on the head commit.
+
+    Annotations are read regardless of the check run's conclusion: a run can
+    report conclusion=success while still carrying failure-level annotations,
+    so gating on the check's pass/fail bucket silently drops real findings.
+    """
+    check_runs = paginate_rest(
+        f"repos/{owner}/{repo}/commits/{head_sha}/check-runs",
+        extract="check_runs",
+    )
+
+    annotations = []
+    for run in check_runs:
+        if not (run.get("output") or {}).get("annotations_count"):
+            continue
+        for a in paginate_rest(f"repos/{owner}/{repo}/check-runs/{run['id']}/annotations"):
+            path = a.get("path") or ""
+            annotations.append({
+                "check_run_name": run.get("name", ""),
+                "check_run_conclusion": run.get("conclusion"),
+                "annotation_level": a.get("annotation_level", ""),
+                "path": path,
+                "start_line": a.get("start_line"),
+                "end_line": a.get("end_line"),
+                "title": a.get("title") or "",
+                "message": a.get("message") or "",
+                "raw_details": a.get("raw_details") or "",
+                "blob_href": a.get("blob_href", ""),
+                "in_files_changed": path in changed_files,
+            })
+
+    return annotations
+
+
+def _fetch_code_scanning_alerts(owner, repo, pr_number):
+    """Code scanning alerts for the PR. Requires GHAS + the security_events scope."""
+    ok, stdout, stderr = run_gh_tolerant(
+        "api", f"repos/{owner}/{repo}/code-scanning/alerts?pr={pr_number}&per_page=100"
+    )
+    if not ok:
+        detail = stderr.strip().splitlines()[-1] if stderr.strip() else "request failed"
+        return {"available": False, "reason": detail, "alerts": []}
+
+    alerts = []
+    for alert in json.loads(stdout):
+        rule = alert.get("rule") or {}
+        loc = ((alert.get("most_recent_instance") or {}).get("location")) or {}
+        instance = alert.get("most_recent_instance") or {}
+        alerts.append({
+            "number": alert.get("number"),
+            "state": alert.get("state"),
+            "rule_id": rule.get("id", ""),
+            "description": rule.get("description", ""),
+            "severity": rule.get("security_severity_level") or rule.get("severity", ""),
+            "path": loc.get("path", ""),
+            "start_line": loc.get("start_line"),
+            "message": (instance.get("message") or {}).get("text", ""),
+            "url": alert.get("html_url", ""),
+        })
+    return {"available": True, "reason": None, "alerts": alerts}
+
+
+def cmd_annotations(args):
+    owner, repo = get_repo_info(args.repo)
+    slug = _repo_slug(args)
+    pr_number = get_pr_number(args.pr, slug)
+
+    cmd = ["pr", "view", str(pr_number), "--json", "headRefOid"]
+    if slug:
+        cmd.extend(["--repo", slug])
+    head_sha = json.loads(run_gh(*cmd))["headRefOid"]
+
+    changed_files = {
+        f["filename"]
+        for f in paginate_rest(f"repos/{owner}/{repo}/pulls/{pr_number}/files")
+    }
+
+    annotations = _fetch_check_run_annotations(owner, repo, head_sha, changed_files)
+    code_scanning = _fetch_code_scanning_alerts(owner, repo, pr_number)
+
+    annotations.sort(
+        key=lambda a: (not a["in_files_changed"], a["path"], a["start_line"] or 0)
+    )
+
+    def count(level):
+        return sum(1 for a in annotations if a["annotation_level"] == level)
+
+    _output({
+        "pr_number": pr_number,
+        "owner": owner,
+        "repo": repo,
+        "head_sha": head_sha,
+        "summary": {
+            "total": len(annotations),
+            "failure": count("failure"),
+            "warning": count("warning"),
+            "notice": count("notice"),
+            "in_files_changed": sum(1 for a in annotations if a["in_files_changed"]),
+            "outside_files_changed": sum(
+                1 for a in annotations if not a["in_files_changed"]
+            ),
+            "code_scanning_alerts": len(code_scanning["alerts"]),
+        },
+        "annotations": annotations,
+        "code_scanning_alerts": code_scanning,
+    })
+
+
 # ── Fetch: comments ───────────────────────────────────────────────────
 
 COMMENTS_QUERY = """
@@ -225,6 +362,56 @@ query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
   }
 }
 """
+
+
+REVIEWS_QUERY = """
+query($owner: String!, $repo: String!, $pr: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $pr) {
+      reviews(first: 100) {
+        nodes {
+          id
+          databaseId
+          body
+          state
+          author { login }
+          submittedAt
+          url
+        }
+      }
+    }
+  }
+}
+"""
+
+
+def _fetch_review_bodies(owner, repo, pr_number):
+    """Top-level bodies of submitted reviews.
+
+    Distinct from issue comments: bots such as CodeRabbit and Copilot post their
+    summary as a review body, which the `comments` connection never returns.
+    """
+    data = json.loads(run_gh(
+        "api", "graphql",
+        "-f", f"query={REVIEWS_QUERY}",
+        "-f", f"owner={owner}",
+        "-f", f"repo={repo}",
+        "-F", f"pr={pr_number}",
+    ))
+    nodes = data["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
+    return [
+        {
+            "node_id": r["id"],
+            "database_id": r["databaseId"],
+            "author": _parse_author(r),
+            "state": r["state"],
+            "body": r["body"],
+            "submitted_at": r["submittedAt"],
+            "url": r.get("url", ""),
+        }
+        for r in nodes
+        if (r.get("body") or "").strip()
+    ]
 
 
 def cmd_comments(args):
@@ -279,6 +466,7 @@ def cmd_comments(args):
         "pr_author": (pr_meta.get("author") or {}).get("login", "unknown"),
         "pr_body": pr_meta.get("body", ""),
         "pr_comments": comments,
+        "review_bodies": _fetch_review_bodies(owner, repo, pr_number),
     })
 
 
@@ -370,6 +558,7 @@ def main():
     sub.add_parser("threads", help="Fetch unresolved inline review threads", parents=[shared])
     sub.add_parser("ci", help="Fetch CI check status", parents=[shared])
     sub.add_parser("comments", help="Fetch general PR comments and description", parents=[shared])
+    sub.add_parser("annotations", help="Fetch check run annotations and code scanning alerts", parents=[shared])
 
     # Action commands
     p_resolve = sub.add_parser("resolve", help="Resolve a review thread", parents=[shared])
@@ -395,6 +584,7 @@ def main():
         "threads": cmd_threads,
         "ci": cmd_ci,
         "comments": cmd_comments,
+        "annotations": cmd_annotations,
         "resolve": cmd_resolve,
         "react": cmd_react,
         "reply": cmd_reply,

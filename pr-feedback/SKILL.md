@@ -1,6 +1,6 @@
 ---
 name: pr-feedback
-description: Address PR review feedback including inline threads, general comments, bot-generated reviews, PR description findings, and CI failures. Use when asked to handle, address, resolve, respond to, or work through PR review comments, review feedback, or CI check failures. Triggers on requests like "address PR comments", "handle review feedback", "resolve PR reviews", "fix review comments", "go through PR feedback", "check CI failures".
+description: Address PR review feedback including inline threads, general comments, bot-generated reviews, PR description findings, check run annotations (inline lint/type/security findings shown in the Files changed tab), code scanning alerts, and CI failures. Use when asked to handle, address, resolve, respond to, or work through PR review comments, review feedback, inline findings, or CI check failures. Triggers on requests like "address PR comments", "handle review feedback", "resolve PR reviews", "fix review comments", "go through PR feedback", "check CI failures", "fix the inline findings on the PR".
 ---
 
 # PR Feedback
@@ -11,12 +11,13 @@ All commands auto-detect the repository and PR from the current branch.
 
 ## Step 1: Fetch All Review Feedback
 
-Run the three fetch commands to collect all feedback:
+Run all four fetch commands to collect every feedback surface:
 
 ```bash
-python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py threads    # unresolved inline review threads
-python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py ci         # CI check status and failures
-python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py comments   # general PR comments and PR description
+python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py threads      # unresolved inline review threads
+python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py ci           # CI check status and failures
+python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py comments     # general PR comments, review bodies, PR description
+python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py annotations  # check run annotations and code scanning alerts
 ```
 
 If any fails (no PR for current branch, auth issues), report the error and stop.
@@ -25,7 +26,9 @@ If any fails (no PR for current branch, auth issues), report the error and stop.
 
 `ci` returns `ci_summary` (pass/fail/pending counts) and `failed_checks` (with run_id, job_id for log fetching).
 
-`comments` returns `pr_body` (may contain bot-appended review content), `pr_comments` (each with node_id, database_id), and `pr_author`.
+`comments` returns `pr_body` (may contain bot-appended review content), `pr_comments` (each with node_id, database_id), `review_bodies` (top-level bodies of submitted reviews -- where CodeRabbit, Copilot and similar bots post their summary), and `pr_author`.
+
+`annotations` returns `annotations` (check run annotations) and `code_scanning_alerts`. Run it on every PR -- see Step 3 for why a green CI does not mean there are no annotations.
 
 ## Step 2: Triage and Process Review Comments
 
@@ -74,9 +77,41 @@ Extract actionable items and triage them. Pay particular attention to "must-fix"
 
 Flag any findings that are factually incorrect (hallucinations). These need correction in the response phase.
 
-## Step 3: Address CI Failures
+### Review Bodies
 
-If `ci_summary.failed` is 0, skip this step.
+Process `review_bodies` the same way as general PR comments. These are the top-level bodies of submitted reviews, which are a different surface from `pr_comments` -- a bot review summary usually lands here, not in the comments list. `state` tells you how seriously to weigh it: `CHANGES_REQUESTED` is blocking, `COMMENTED` is advisory, `APPROVED` bodies are usually just a sign-off and can be skipped unless they raise a concern.
+
+## Step 3: Address Check Run Annotations
+
+These are the inline findings GitHub renders in the Files changed tab -- lint violations, type errors, security findings, and similar -- attached to a line of code rather than to a review comment. They are invisible to `threads`, `comments`, and `ci`, so they must be read from `annotations`.
+
+Do not skip this step when CI is green. A check run can report `conclusion: success` while still carrying `failure`-level annotations, so `ci_summary.failed == 0` says nothing about whether annotations exist. Triage on the annotation contents, never on the check's pass/fail bucket.
+
+Each annotation carries `check_run_name`, `annotation_level` (`failure`, `warning`, or `notice`), `path`, `start_line`, `title` (e.g. `ruff (TC002)`), `message`, and `in_files_changed`.
+
+Split them on `in_files_changed` before deciding anything:
+
+**`in_files_changed: true`** -- the annotation is on a file this PR touches. Treat it as in scope and fix it, subject to the same Implement / Dismiss / Ask criteria as review comments. A `failure`-level annotation on a changed file is the highest-priority item in the whole run.
+
+**`in_files_changed: false`** -- the annotation is on a file the PR never touched, so it is almost always a pre-existing violation that the linter reports repo-wide. Do not fix these. Fixing them inflates the diff with unrelated changes and makes the PR harder to review. Report them in the summary as pre-existing, and let the user decide whether they want a separate cleanup PR.
+
+Two details worth knowing:
+
+GitHub Actions attaches a location-less annotation with the message `Process completed with exit code N` and a synthetic path like `.github`. It is a restatement of the job's exit status, not a finding. Ignore it; the real findings are the other annotations from the same check run. It is kept in the output so the count matches the `annotations_count` GitHub reports.
+
+When several annotations share a `title` and `message` across many files, they are one rule firing repeatedly. Fix the ones in changed files together in a single pass and describe them as one item in the summary rather than listing each occurrence.
+
+### Code Scanning Alerts
+
+`code_scanning_alerts.alerts` holds GitHub code scanning (CodeQL and other SARIF uploads) results for the PR, each with `severity`, `rule_id`, `path`, and `message`. Treat anything at `high` or `critical` severity as merge-blocking and raise it even if the user did not ask about security.
+
+If `code_scanning_alerts.available` is `false`, read `reason` and mention it once, then move on -- it is a capability gap, not a finding:
+- `Advanced Security must be enabled` -- code scanning is not turned on for this repository. Nothing to fetch.
+- `not authorized to read code scanning alerts` -- the token lacks the `security_events` scope. The user can grant it with `gh auth refresh -h github.com -s security_events`.
+
+## Step 4: Address CI Failures
+
+If `ci_summary.failed` is 0, skip this step. This does not let you skip Step 3 -- annotations are independent of the check's pass/fail bucket.
 
 For each entry in `failed_checks`, fetch the failed job logs:
 
@@ -98,19 +133,22 @@ Diagnose each failure and classify:
 
 When fixing, read the relevant test file and source file to understand the failure, then apply the fix.
 
-## Step 4: Present Summary
+## Step 5: Present Summary
 
-After processing all feedback and CI failures, present results grouped by action:
+After processing all feedback, annotations, and CI failures, present results grouped by action:
 
 1. **Implemented** -- each change with file path, line, and what was done
 2. **Dismissed** -- each with the explanation
 3. **Needs input** -- each with your questions
-4. **CI fixes** -- each failure with diagnosis and what was fixed
-5. **CI skipped** -- each with why it was skipped
+4. **Annotations fixed** -- each with check run name, rule, file, and line
+5. **Pre-existing annotations** -- those outside the changed files, grouped by rule with a file count, noted as not fixed
+6. **Code scanning alerts** -- each with severity and rule, or one line stating why they were unavailable
+7. **CI fixes** -- each failure with diagnosis and what was fixed
+8. **CI skipped** -- each with why it was skipped
 
-Wait for user review of code changes before proceeding to Step 5.
+Wait for user review of code changes before proceeding to Step 6.
 
-## Step 5: Propose Responses
+## Step 6: Propose Responses
 
 After the user approves the code changes, propose a response plan. Present the full plan and wait for approval before executing any of it.
 
@@ -141,6 +179,7 @@ To react to a general PR comment: `python3 ~/.claude/skills/pr-feedback/scripts/
 ## Guidelines
 
 - Process threads in file order to keep edits coherent.
+- Annotations have no thread to resolve and no one to reply to. They clear on their own when the check re-runs against the fix, so the only action they need is the code change.
 - When multiple comments touch the same file, read the file once and process them together.
 - Do not commit changes or post responses automatically. Present everything for user review first.
 - Outdated threads still deserve attention -- the underlying concern may still apply. Flag them as outdated in the summary.
