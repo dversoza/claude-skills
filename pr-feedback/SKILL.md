@@ -24,7 +24,7 @@ If any fails (no PR for current branch, auth issues), report the error and stop.
 
 `threads` returns `unresolved_threads` with thread_id, path, line, and comments (each with node_id, database_id, diff_hunk).
 
-`ci` returns `ci_summary` (pass/fail/pending counts) and `failed_checks` (with run_id, job_id for log fetching).
+`ci` returns `ci_summary` (pass/fail/pending counts) and `failed_checks` (with run_id, job_id for log fetching). On a failed fetch it returns empty counts plus an `error` field -- see Step 3.
 
 `comments` returns `pr_body` (may contain bot-appended review content), `pr_comments` (each with node_id, database_id), `review_bodies` (top-level bodies of submitted reviews -- where CodeRabbit, Copilot and similar bots post their summary), and `pr_author`.
 
@@ -113,6 +113,8 @@ If `code_scanning_alerts.available` is `false`, read `reason` and mention it onc
 
 If `ci_summary.failed` is 0, skip this step. This does not let you skip Step 3 -- annotations are independent of the check's pass/fail bucket.
 
+If `ci` returned an `error` field, no check data was retrieved. An empty result does not mean the build is clean, so never report it as passing. `no checks reported on the '<branch>' branch` means the PR genuinely has no CI configured -- say so and move on. Anything else is a fetch failure: report it verbatim and treat CI status as unknown.
+
 For each entry in `failed_checks`, fetch the failed job logs:
 
 ```bash
@@ -161,6 +163,8 @@ After the user approves the code changes, propose a response plan. Present the f
 - Or add a thumbs-up if acknowledged but no change needed: `python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py react review DATABASE_ID`
 - Skip replying if the comment is clearly noise (bot false positive)
 
+`react` takes an optional `--content` (`+1`, `-1`, `laugh`, `confused`, `heart`, `hooray`, `rocket`, `eyes`), defaulting to `+1`. Use `--content eyes` for items in the Ask bucket: it signals the comment was seen and is pending a decision, which `+1` wrongly reads as agreement.
+
 ### For General PR Comments and PR Body Findings
 
 Draft a single follow-up PR comment addressing multiple non-threaded items together:
@@ -187,3 +191,4 @@ To react to a general PR comment: `python3 ~/.claude/skills/pr-feedback/scripts/
 - Respect the codebase's project instructions (CLAUDE.md) when evaluating comments.
 - When drafting response text, keep it factual and concise. Do not be defensive or dismissive.
 - When correcting hallucinated findings, be specific: quote what the reviewer claimed, explain what actually happens, and point to the relevant code.
+- The skill may be run repeatedly on the same PR as review rounds continue. A thread stays unresolved until someone resolves it, so a thread handled on an earlier run will appear again. Before acting on one, check whether the newest comment is already your reply or the PR author's: if so, the ask was likely answered and the thread is only awaiting the reviewer. Re-state it in the summary rather than implementing the same change twice.

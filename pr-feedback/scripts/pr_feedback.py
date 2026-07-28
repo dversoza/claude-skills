@@ -11,7 +11,8 @@ Fetch commands (read-only):
 
 Action commands (write):
     resolve THREAD_ID               Mark a review thread as resolved
-    react   TYPE DATABASE_ID        Add thumbs-up (TYPE: review|issue)
+    react   TYPE DATABASE_ID        Add a reaction (TYPE: review|issue)
+                                    [--content +1|eyes|...] (default: +1)
     reply   DATABASE_ID BODY        Reply to a review thread comment
     comment BODY                    Leave a general PR comment
 
@@ -109,6 +110,7 @@ query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
           line
           startLine
           comments(first: 100) {
+            pageInfo { hasNextPage endCursor }
             nodes {
               id
               databaseId
@@ -124,6 +126,47 @@ query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
   }
 }
 """
+
+
+THREAD_COMMENTS_QUERY = """
+query($threadId: ID!, $cursor: String) {
+  node(id: $threadId) {
+    ... on PullRequestReviewThread {
+      comments(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id
+          databaseId
+          body
+          author { login }
+          createdAt
+          diffHunk
+        }
+      }
+    }
+  }
+}
+"""
+
+
+def _fetch_remaining_thread_comments(thread_id, cursor):
+    """Page through the tail of a thread whose comments exceeded the first page.
+
+    The newest comment carries the current ask, so truncating a long
+    back-and-forth silently drops the only part that still matters.
+    """
+    extra = []
+    while cursor:
+        data = json.loads(run_gh(
+            "api", "graphql",
+            "-f", f"query={THREAD_COMMENTS_QUERY}",
+            "-f", f"threadId={thread_id}",
+            "-f", f"cursor={cursor}",
+        ))
+        page = data["data"]["node"]["comments"]
+        extra.extend(page["nodes"])
+        cursor = page["pageInfo"]["endCursor"] if page["pageInfo"]["hasNextPage"] else None
+    return extra
 
 
 def cmd_threads(args):
@@ -157,6 +200,13 @@ def cmd_threads(args):
 
     threads = []
     for t in all_threads:
+        comment_nodes = list(t["comments"]["nodes"])
+        page_info = t["comments"]["pageInfo"]
+        if page_info["hasNextPage"]:
+            comment_nodes.extend(
+                _fetch_remaining_thread_comments(t["id"], page_info["endCursor"])
+            )
+
         threads.append({
             "thread_id": t["id"],
             "path": t["path"],
@@ -172,7 +222,7 @@ def cmd_threads(args):
                     "diff_hunk": c["diffHunk"],
                     "created_at": c["createdAt"],
                 }
-                for c in t["comments"]["nodes"]
+                for c in comment_nodes
             ],
         })
 
@@ -198,8 +248,16 @@ def cmd_ci(args):
         if slug:
             cmd.extend(["--repo", slug])
         raw = run_gh(*cmd)
-    except subprocess.CalledProcessError:
-        _output({"pr_number": pr_number, "ci_summary": {}, "failed_checks": []})
+    except subprocess.CalledProcessError as e:
+        # An empty result is ambiguous on its own: a PR with no CI configured and
+        # a failed fetch both produce zero checks. Surface why, so a broken token
+        # is never reported as a clean build.
+        _output({
+            "pr_number": pr_number,
+            "ci_summary": {},
+            "failed_checks": [],
+            "error": e.stderr.strip() or "gh pr checks failed with no output",
+        })
         return
 
     checks = json.loads(raw)
@@ -473,18 +531,31 @@ def cmd_comments(args):
 # ── Action: resolve ───────────────────────────────────────────────────
 
 
+RESOLVE_MUTATION = """
+mutation($threadId: ID!) {
+  resolveReviewThread(input: {threadId: $threadId}) {
+    thread { isResolved }
+  }
+}
+"""
+
+
 def cmd_resolve(args):
-    mutation = (
-        'mutation { resolveReviewThread(input: {threadId: "'
-        + args.thread_id
-        + '"}) { thread { isResolved } } }'
-    )
-    result = json.loads(run_gh("api", "graphql", "-f", f"query={mutation}"))
+    result = json.loads(run_gh(
+        "api", "graphql",
+        "-f", f"query={RESOLVE_MUTATION}",
+        "-f", f"threadId={args.thread_id}",
+    ))
     resolved = result["data"]["resolveReviewThread"]["thread"]["isResolved"]
     _output({"thread_id": args.thread_id, "resolved": resolved})
 
 
 # ── Action: react ─────────────────────────────────────────────────────
+
+
+REACTION_CONTENTS = [
+    "+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes",
+]
 
 
 def cmd_react(args):
@@ -496,8 +567,8 @@ def cmd_react(args):
     else:
         endpoint = f"repos/{owner}/{repo}/issues/comments/{db_id}/reactions"
 
-    result = json.loads(run_gh("api", endpoint, "-f", "content=+1"))
-    _output({"database_id": db_id, "reaction": result.get("content", "+1")})
+    result = json.loads(run_gh("api", endpoint, "-f", f"content={args.content}"))
+    _output({"database_id": db_id, "reaction": result.get("content", args.content)})
 
 
 # ── Action: reply ─────────────────────────────────────────────────────
@@ -564,12 +635,16 @@ def main():
     p_resolve = sub.add_parser("resolve", help="Resolve a review thread", parents=[shared])
     p_resolve.add_argument("thread_id", help="GraphQL node ID of the thread")
 
-    p_react = sub.add_parser("react", help="Add thumbs-up reaction", parents=[shared])
+    p_react = sub.add_parser("react", help="Add a reaction to a comment", parents=[shared])
     p_react.add_argument(
         "comment_type", choices=["review", "issue"],
         help="Comment type (review=inline, issue=general)",
     )
     p_react.add_argument("database_id", help="REST API database ID of the comment")
+    p_react.add_argument(
+        "--content", choices=REACTION_CONTENTS, default="+1",
+        help="Reaction to add (default: +1)",
+    )
 
     p_reply = sub.add_parser("reply", help="Reply to a review thread comment", parents=[shared])
     p_reply.add_argument("database_id", help="Database ID of comment to reply to")
