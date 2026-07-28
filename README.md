@@ -23,6 +23,7 @@ The assistant will automatically detect skills placed in `~/.claude/skills/` on 
 |-------|-------------|
 | [pr-feedback](pr-feedback/) | Fetch and address PR review feedback, CI failures, and bot-generated reviews |
 | [postgres](postgres/) | Read-only PostgreSQL querying, schema introspection, and query planning |
+| [asana](asana/) | Asana task CRUD (list/get/create/update) via an installable `asana` CLI |
 
 
 ## pr-feedback
@@ -86,3 +87,39 @@ Database connection URIs are configured per-project in `CLAUDE.local.md` (gitign
 - `psql` (PostgreSQL client tools)
 - Python 3.6+
 - Database aliases in a `pg-databases` block in the project's `CLAUDE.local.md`
+
+
+## asana
+
+Task CRUD against the Asana REST API through an installable `asana` CLI. Exposes
+list, get, create, and update only -- no delete. All output is JSON; all
+arguments are named. The CLI has zero third-party dependencies (Python stdlib).
+
+Unlike the other skills, this one ships a `uv`-installable package under `cli/`:
+
+    uv tool install ~/.claude/skills/asana/cli
+    asana setup --token <PERSONAL_ACCESS_TOKEN>
+
+`setup` stores the token in `~/.config/asana-cli/config.env` (mode 0600); an
+`ASANA_ACCESS_TOKEN` env var overrides it.
+
+### Subcommands
+
+    asana whoami
+    asana workspaces
+    asana projects [--workspace GID] [--limit N]
+    asana tasks list --assignee me [--include-completed] [--limit N]
+    asana tasks list --project GID [--include-completed] [--limit N]
+    asana tasks get --gid GID [--fields a,b,c]
+    asana tasks create --name "..." [--notes ...] [--parent GID] [--project GID] [--assignee me] [--due YYYY-MM-DD]
+    asana tasks update --gid GID [--name ...] [--due ...] [--add-project GID] [--add-follower GID] [--complete]
+    asana tasks reorder --parent GID --order gid1,gid2,gid3
+    asana api --path /PATH [--method GET|POST|PUT|PATCH] [--query k=v ...] [--data '<json>']
+
+`asana api` is an escape hatch to any Asana REST endpoint (metadata, sections,
+stories, search); `DELETE` requires an explicit `--allow-delete`.
+
+### Requirements
+
+- Python 3.9+ and `uv`
+- An Asana Personal Access Token (https://app.asana.com/0/my-apps)
