@@ -12,10 +12,26 @@ export const meta = {
 //   scope - one line on what the PR is meant to do. Load-bearing; see the skill.
 //   focus - optional extra instruction appended to every reviewer, for project-specific
 //           concerns ("this is on the payment path", "timestamps here are always UTC").
-const repo = (args && args.repo) || '.'
-const base = (args && args.base) || 'origin/main'
-const scope = (args && args.scope) || 'not supplied — infer it from the diff'
-const focus = (args && args.focus) || ''
+// args can arrive as a JSON-encoded STRING depending on how the caller serialises it. Every field
+// then reads as undefined, and the old `repo || '.'` default silently pointed all reviewers at the
+// session's working directory — producing confident, well-evidenced findings about a completely
+// different branch. Nothing in that output says it reviewed the wrong tree. Parse it, and refuse
+// to guess a repo.
+let input = args
+if (typeof input === 'string') {
+  try {
+    input = JSON.parse(input)
+  } catch {
+    throw new Error('args was a string and is not valid JSON: ' + input.slice(0, 200))
+  }
+}
+if (!input || !input.repo) {
+  throw new Error('args.repo is required: the absolute path of the checkout to review. There is no default — a wrong-tree review is indistinguishable from a good one.')
+}
+const repo = input.repo
+const base = input.base || 'origin/main'
+const scope = input.scope || 'not supplied — infer it from the diff'
+const focus = input.focus || ''
 
 const CONTEXT = [
   'You are reviewing an UNMERGED branch in the checkout at ' + repo + '.',

@@ -49,6 +49,11 @@ Workflow({scriptPath: "~/.claude/skills/adversarial-review/workflows/pr-review-q
 Address the script by `scriptPath`. `name:` resolves workflow names relative to the session's root
 checkout, so it will not find a globally-installed skill.
 
+`args` must be a real JSON object, not a JSON-encoded string. A string reaches the script as one
+opaque value, every field reads as undefined, and a review that silently targets the wrong
+checkout is indistinguishable from a good one until you check the file paths in the findings. The
+scripts now throw on both a stringified `args` and a missing `repo` rather than defaulting.
+
 `scope` does double duty and is worth writing properly. Reviewers given the author's intent catch
 mismatches between what the diff claims and what it does; reviewers left to infer it mostly
 re-describe the diff back at you. It is also the tripwire for reviewing the wrong tree.
