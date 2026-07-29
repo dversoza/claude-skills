@@ -24,6 +24,7 @@ The assistant will automatically detect skills placed in `~/.claude/skills/` on 
 | [pr-feedback](pr-feedback/) | Fetch and address PR review feedback, CI failures, and bot-generated reviews |
 | [postgres](postgres/) | Read-only PostgreSQL querying, schema introspection, and query planning |
 | [asana](asana/) | Asana task CRUD (list/get/create/update) via an installable `asana` CLI |
+| [adversarial-review](adversarial-review/) | Adversarial PR review: reviewers find defects, skeptics refute them, only survivors are reported |
 
 
 ## pr-feedback
