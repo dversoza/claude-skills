@@ -24,6 +24,7 @@ The assistant will automatically detect skills placed in `~/.claude/skills/` on 
 | [pr-feedback](pr-feedback/) | Fetch and address PR review feedback, CI failures, and bot-generated reviews |
 | [postgres](postgres/) | Read-only PostgreSQL querying, schema introspection, and query planning |
 | [asana](asana/) | Asana task CRUD (list/get/create/update) via an installable `asana` CLI |
+| [concise-writing](concise-writing/) | Simplified Technical English (ASD-STE100) style with per-artifact budgets, enforced by a blocking PreToolUse hook |
 
 
 ## pr-feedback
@@ -123,3 +124,17 @@ stories, search); `DELETE` requires an explicit `--allow-delete`.
 
 - Python 3.9+ and `uv`
 - An Asana Personal Access Token (https://app.asana.com/0/my-apps)
+
+
+## concise-writing
+
+Enforced writing style for everything the assistant produces: PR descriptions, commits, code comments, reviews, tickets, chat messages, and docs. Adapts ASD-STE100 (Simplified Technical English) structural rules and adds hard per-artifact budgets (PR body <=150 words, commit subject <=50 chars, review comments 1-2 lines, no narration code comments, no emojis or em dashes).
+
+Unlike advisory style instructions, a PreToolUse hook (`scripts/concise_check.py`) blocks the offending tool call (`git commit`, `gh pr create`, `Edit`/`Write`, ticket and chat MCP tools) and returns the violation list, forcing a rewrite before the action executes. See the skill's Installation section for the settings.json wiring.
+
+Rule sources and citations live in `references/writing-rules.md`; worked before/after rewrites in `examples/before-after.md`. The ASD-STE100 dictionary is not redistributable and is not included.
+
+### Requirements
+
+- Python 3.6+ (hook script, stdlib only)
+- Hook entries in `~/.claude/settings.json` (snippet in `SKILL.md`)
