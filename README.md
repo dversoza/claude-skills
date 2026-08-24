@@ -25,6 +25,49 @@ The assistant will automatically detect skills placed in `~/.claude/skills/` on 
 | [postgres](postgres/) | Read-only PostgreSQL querying, schema introspection, and query planning |
 | [asana](asana/) | Asana task CRUD (list/get/create/update) via an installable `asana` CLI |
 | [concise-writing](concise-writing/) | Simplified Technical English (ASD-STE100) style with per-artifact budgets, enforced by a blocking PreToolUse hook |
+| [backlog-grooming](backlog-grooming/) | Groom a Jira or Asana backlog against the codebase and git history; propose-only |
+| [1password](1password/) | Secure `op` CLI read patterns that keep secrets out of the transcript |
+| [skill-creator](skill-creator/) | Guide for writing and updating skills |
+
+
+## backlog-grooming
+
+Reads a whole backlog, determines each ticket's *real* status from the code and
+git history rather than the ticket text, and produces a prioritized grooming
+report. Propose-only: it never mutates the tracker without an explicit approval
+pass.
+
+Extraction is provider-specific; everything after it is not. An adapter writes a
+canonical dataset and the analysis reads only that, so adding a tracker means
+adding an adapter rather than editing the engine.
+
+### Providers
+
+| Provider | Interface | Done-but-open detection |
+|----------|-----------|-------------------------|
+| jira | `acli`, with a browser-session REST fallback | reliable, keys appear in commits |
+| asana | the `asana` CLI from this repo | degraded, gids never appear in commits |
+
+Asana task gids do not show up in commit messages, so the detector that finds
+shipped-but-open tickets falls back to permalink and keyword search there. The
+skill reports when it ran degraded rather than presenting the two as equivalent.
+
+### Usage
+
+    python3 ~/.claude/skills/backlog-grooming/scripts/extract_jira.py \
+      --project VD --workdir ~/code/vd-grooming --rich open
+
+    python3 ~/.claude/skills/backlog-grooming/scripts/extract_asana.py \
+      --project <PROJECT_GID> --workdir ~/code/asana-grooming --rich open
+
+Both accept `--max-rich N` to bound a first pass; skipped keys are always
+reported. `references/dataset.md` defines the contract an adapter must satisfy.
+
+### Requirements
+
+- Python 3.6+, `jq`, `gh` for the PR evidence step
+- Jira: `acli` authenticated (`acli jira auth status`)
+- Asana: `uv tool install ~/.claude/skills/asana/cli` then `asana setup --token ...`
 
 
 ## pr-feedback
