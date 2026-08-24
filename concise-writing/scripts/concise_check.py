@@ -58,8 +58,10 @@ CODE_EXT = {
     ".h",
     ".cpp",
     ".rs",
+    ".yml",
+    ".yaml",
 }
-HASH_COMMENT = {".py", ".sh", ".zsh", ".tf", ".rb", ".sql"}
+HASH_COMMENT = {".py", ".sh", ".zsh", ".tf", ".rb", ".sql", ".yml", ".yaml"}
 DOC_EXT = {".md", ".mdx", ".rst"}
 
 
@@ -253,8 +255,7 @@ def check_bash(cmd):
     v = []
     if re.search(r"\bgit commit\b", cmd):
         v += check_commit(cmd)
-    if re.search(r"\bgh pr (create|edit)\b", cmd) or re.search(
-    ):
+    if re.search(r"\bgh pr (create|edit)\b", cmd):
         v += check_pr_body(
             extract_message(cmd, ["--body", "-b"], ["--body-file", "-F"])
         )
@@ -305,7 +306,7 @@ def annotated_lines(text, ext):
     return out
 
 
-def check_code(added_set, new_text, ext):
+def check_code(added_set, new_text, ext, evidence_file=False):
     v = []
     comments, docstrings, code_count = [], [], 0
     for s, kind in annotated_lines(new_text, ext):
@@ -330,7 +331,10 @@ def check_code(added_set, new_text, ext):
             v.append("comment line over 100 chars")
             break
     total = code_count + len(comments)
-    if len(comments) >= 3 and total and len(comments) > 0.2 * total:
+    # A source YAML's comments ARE the deliverable: why this selector, what the wrong one
+    # returned, which parameter is silently ignored. Capping them moves that into a PR body,
+    # where nobody reads it when the source breaks a year later.
+    if not evidence_file and len(comments) >= 3 and total and len(comments) > 0.2 * total:
         v.append(
             f"{len(comments)} comment lines for {code_count} code "
             "lines: keep only non-obvious constraints"
@@ -350,11 +354,9 @@ def check_doc(added_text):
 def check_file(ti, tool):
     path = ti.get("file_path") or ""
     home = os.path.expanduser("~")
-    if (
-        "/.claude/" in path
-        or path.startswith(home + "/.claude")
-        or "/scratchpad" in path
-    ):
+    # Only the user's own config dir is exempt. A repo's .claude/worktrees holds real
+    # source under review, and skipping it disabled the hook for every agent.
+    if path.startswith(home + "/.claude") or "/scratchpad" in path:
         return []
     ext = os.path.splitext(path)[1].lower()
     if ext not in CODE_EXT and ext not in DOC_EXT:
@@ -371,7 +373,8 @@ def check_file(ti, tool):
         return []
     if ext in DOC_EXT:
         return check_doc(added_text)
-    return check_code({l.strip() for l in added}, new_text, ext)
+    evidence = "/yaml/sources/" in path or "/tests/fixtures/" in path
+    return check_code({l.strip() for l in added}, new_text, ext, evidence)
 
 
 def check_linear(tool, ti):
