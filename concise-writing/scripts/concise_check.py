@@ -81,8 +81,21 @@ def deny(violations):
     sys.exit(0)
 
 
+AI_ATTRIBUTION = (
+    "co-authored-by",
+    "claude-session",
+    "claude.ai/code/session",
+    "noreply@anthropic.com",
+    "generated with claude",
+)
+
+
 def style(text, label):
     v = []
+    low = text.lower()
+    for banned in AI_ATTRIBUTION:
+        if banned in low:
+            v.append(f"{label}: AI attribution '{banned}'")
     if EMOJI.search(text):
         v.append(f"{label}: emoji")
     if DASH.search(text):
@@ -179,10 +192,8 @@ def check_commit(cmd):
         if len(l) > 72 and not URL.search(l):
             v.append("commit body line over 72 chars")
             break
-    low = msg.lower()
-    for banned in ("co-authored-by", "claude code", "generated with"):
-        if banned in low:
-            v.append(f"commit contains '{banned}'")
+    if "claude code" in msg.lower():
+        v.append("commit mentions 'claude code'")
     return v
 
 
@@ -190,6 +201,8 @@ def check_pr_body(body, label="PR body"):
     if not body:
         return []
     v = style(body, label)
+    if "claude code" in body.lower():
+        v.append(f"{label} mentions 'claude code'")
     w = word_count(body)
     if w > 150:
         v.append(f"{label} {w} words (max 150)")
