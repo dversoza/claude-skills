@@ -253,8 +253,7 @@ def check_bash(cmd):
     v = []
     if re.search(r"\bgit commit\b", cmd):
         v += check_commit(cmd)
-    if re.search(r"\bgh pr (create|edit)\b", cmd) or re.search(
-    ):
+    if re.search(r"\bgh pr (create|edit)\b", cmd):
         v += check_pr_body(
             extract_message(cmd, ["--body", "-b"], ["--body-file", "-F"])
         )
