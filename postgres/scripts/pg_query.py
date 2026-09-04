@@ -64,7 +64,7 @@ def _parse_databases(filepath):
         if "=" not in line:
             continue
         alias, uri = line.split("=", 1)
-        databases[alias.strip()] = uri.strip()
+        databases[alias.strip()] = uri.strip().strip("\"'")
 
     return databases
 
