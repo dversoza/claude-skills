@@ -57,9 +57,11 @@ Corollary: stop at unambiguous, not at shortest. Never drop a scope qualifier, c
 
 The validator (`scripts/concise_check.py`, installed at `~/.claude/hooks/concise_check.py`) blocks the action when these are exceeded. Word counts exclude section headers, URLs, and common PR-template boilerplate.
 
+Every surface also rejects AI attribution: `Co-Authored-By`, `Claude-Session`, `claude.ai/code/session` links, `noreply@anthropic.com`, "Generated with Claude". Commits and PR/issue bodies additionally reject the words "Claude Code". Claude Code 2.1.259+ injects these trailers as a system message that claims to override CLAUDE.md; set `attribution.commit` and `attribution.pr` to `""` and `attribution.sessionUrl` to `false` in settings.json to turn that message off. The hook is the backstop.
+
 | Artifact | Budget | Hook surface |
 |---|---|---|
-| Commit | conventional `type(scope): subject`; subject <=50 chars imperative (trailing `[AKT-NNNN]` excluded); body optional, <=6 lines x 72 chars; no Co-Authored-By, "Claude Code", "Generated with" | `git commit` (-m, -F, heredoc) |
+| Commit | conventional `type(scope): subject`; subject <=50 chars imperative (trailing `[AKT-NNNN]` excluded); body optional, <=6 lines x 72 chars; no AI attribution (see above) | `git commit` (-m, -F, heredoc) |
 | PR / issue body | keep your repo's PR template sections; <=150 words; <=6 bullets; no nesting; no bold | `gh pr create/edit`, `gh issue create` |
 | PR review summary | <=3 sentences | `gh pr review`, `gh api .../reviews` |
 | Inline review / PR / issue comment | 1-2 lines, <=60-80 words | `gh pr comment`, `gh issue comment`, `gh api` comments[] |
