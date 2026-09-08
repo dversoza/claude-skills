@@ -73,7 +73,7 @@ reported. `references/dataset.md` defines the contract an adapter must satisfy.
 
 ## pr-feedback
 
-Fetches all review feedback and CI status from a GitHub PR, triages each item, and guides through implementing fixes and proposing responses.
+Fetches all review feedback and CI status from a GitHub PR, triages each item, implements fixes, and reports back with a response plan. It runs as a subagent and never commits, pushes, or posts.
 
 The skill auto-detects the repository and PR from the current branch. It works with any GitHub repository accessible via `gh` CLI.
 
@@ -102,8 +102,8 @@ The skill follows a structured workflow when invoked:
 1. Fetch all feedback (threads, CI, comments) in parallel
 2. Triage each item as implement, dismiss, or escalate
 3. Apply fixes for items classified as implement
-4. Present a summary grouped by action taken
-5. After user approval, propose and execute responses (resolve threads, post replies)
+4. Report back grouped by action taken, with the verification results
+5. Include a response plan (resolve threads, post replies) that the caller runs after user approval
 
 ### Requirements
 
