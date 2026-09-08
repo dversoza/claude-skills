@@ -23,6 +23,7 @@ The assistant will automatically detect skills placed in `~/.claude/skills/` on 
 |-------|-------------|
 | [pr-feedback](pr-feedback/) | Fetch and address PR review feedback, CI failures, and bot-generated reviews |
 | [postgres](postgres/) | Read-only PostgreSQL querying, schema introspection, and query planning |
+| [opensearch](opensearch/) | Read-only OpenSearch/Elasticsearch querying, index introspection, and search DSL execution |
 | [asana](asana/) | Asana task CRUD (list/get/create/update) via an installable `asana` CLI |
 | [concise-writing](concise-writing/) | Simplified Technical English (ASD-STE100) style with per-artifact budgets, enforced by a blocking PreToolUse hook |
 | [backlog-grooming](backlog-grooming/) | Groom a Jira or Asana backlog against the codebase and git history; propose-only |
@@ -131,6 +132,38 @@ Database connection URIs are configured per-project in `CLAUDE.local.md` (gitign
 - `psql` (PostgreSQL client tools)
 - Python 3.6+
 - Database aliases in a `pg-databases` block in the project's `CLAUDE.local.md`
+
+
+## opensearch
+
+Read-only access to OpenSearch and Elasticsearch clusters via the REST API. Only read endpoints are issued (`_cluster/health`, `_cat/indices`, `_mapping`, `_count`, `_search`, `GET _doc`), so the tool cannot write by construction.
+
+Cluster URLs are configured per-project in `CLAUDE.local.md` (gitignored) inside a `` ```opensearch-clusters``` `` fenced code block. Each line is `alias=url` plus optional options: `tls=skip` turns off certificate verification for a self-signed cert; `aws=<profile>/<domain>` repairs a stale endpoint for an AWS-managed domain by re-deriving its ENI IPs with the AWS CLI, probing them, and rewriting the alias host with the one that answers. The script resolves aliases internally so credentials never appear on the command line.
+
+    ```opensearch-clusters
+    local=http://localhost:9200
+    dev=https://admin:PASSWORD@opensearch.internal.example:443 tls=skip
+    prod=https://admin:PASSWORD@10.0.1.2:443 tls=skip aws=prod/my-domain
+    ```
+
+### Subcommands
+
+    python3 ~/.claude/skills/opensearch/scripts/os_query.py list
+    python3 ~/.claude/skills/opensearch/scripts/os_query.py health <alias>
+    python3 ~/.claude/skills/opensearch/scripts/os_query.py indices <alias> [--pattern 'logs-*']
+    python3 ~/.claude/skills/opensearch/scripts/os_query.py mapping <alias> <index> [--field NAME]
+    python3 ~/.claude/skills/opensearch/scripts/os_query.py count <alias> <index> [--query '{"query":{...}}']
+    python3 ~/.claude/skills/opensearch/scripts/os_query.py search <alias> <index> '{"query":{...}}' [--size N] [--source f1,f2] [--explain]
+    python3 ~/.claude/skills/opensearch/scripts/os_query.py get <alias> <index> <doc_id>
+
+All subcommands accept `--no-verify-tls` and `--timeout SECONDS`.
+
+### Requirements
+
+- Python 3.6+ (stdlib only)
+- Network access to the cluster
+- `aws` CLI with an authenticated profile, only for `aws=` endpoint rediscovery
+- Cluster aliases in an `opensearch-clusters` block in the project's `CLAUDE.local.md`
 
 
 ## asana
