@@ -1,6 +1,8 @@
 ---
 name: pr-feedback
 description: Address PR review feedback including inline threads, general comments, bot-generated reviews, PR description findings, check run annotations (inline lint/type/security findings shown in the Files changed tab), code scanning alerts, and CI failures. Use when asked to handle, address, resolve, respond to, or work through PR review comments, review feedback, inline findings, or CI check failures. Triggers on requests like "address PR comments", "handle review feedback", "resolve PR reviews", "fix review comments", "go through PR feedback", "check CI failures", "fix the inline findings on the PR".
+context: fork
+background: false
 ---
 
 # PR Feedback
@@ -109,9 +111,27 @@ If `code_scanning_alerts.available` is `false`, read `reason` and mention it onc
 - `Advanced Security must be enabled` -- code scanning is not turned on for this repository. Nothing to fetch.
 - `not authorized to read code scanning alerts` -- the token lacks the `security_events` scope. The user can grant it with `gh auth refresh -h github.com -s security_events`.
 
-## Step 4: Address CI Failures
+## Step 4: Address CI Failures and Merge Conflicts
 
-If `ci_summary.failed` is 0, skip this step. This does not let you skip Step 3 -- annotations are independent of the check's pass/fail bucket.
+### Merge Conflicts
+
+Always check, even when every review comment is handled and CI is green -- a conflicting branch blocks merge and CI often will not run at all ("Checks awaiting conflict resolution"):
+
+```bash
+gh pr view {number} --json mergeable,mergeStateStatus,baseRefName
+```
+
+If `mergeable` is `CONFLICTING`, rebase onto the base branch and resolve so both sides survive. Then re-verify the PR's own guarantees, not just that tests pass: a textual merge can succeed while silently breaking the PR's intent. If the PR asserts a measured property (query count, timing, output equality), re-measure it after the merge -- new code from the base branch may depend on something this PR removed or narrowed.
+
+Identify what landed to cause it:
+
+```bash
+git log --oneline origin/{head}..origin/{base} -- <conflicting paths>
+```
+
+### CI Failures
+
+If `ci_summary.failed` is 0, skip this section. This does not let you skip Step 3 -- annotations are independent of the check's pass/fail bucket.
 
 If `ci` returned an `error` field, no check data was retrieved. An empty result does not mean the build is clean, so never report it as passing. `no checks reported on the '<branch>' branch` means the PR genuinely has no CI configured -- say so and move on. Anything else is a fetch failure: report it verbatim and treat CI status as unknown.
 
@@ -135,9 +155,13 @@ Diagnose each failure and classify:
 
 When fixing, read the relevant test file and source file to understand the failure, then apply the fix.
 
-## Step 5: Present Summary
+## Step 5: Report Back
 
-After processing all feedback, annotations, and CI failures, present results grouped by action:
+You run as a subagent, so you cannot ask the user anything. Stop after the code
+changes are made and verified. Do not commit, do not push, and do not post any
+reply, reaction, or resolve.
+
+Return a report grouped by action:
 
 1. **Implemented** -- each change with file path, line, and what was done
 2. **Dismissed** -- each with the explanation
@@ -147,12 +171,14 @@ After processing all feedback, annotations, and CI failures, present results gro
 6. **Code scanning alerts** -- each with severity and rule, or one line stating why they were unavailable
 7. **CI fixes** -- each failure with diagnosis and what was fixed
 8. **CI skipped** -- each with why it was skipped
+9. **Proposed responses** -- the Step 6 plan, ready for the caller to execute
 
-Wait for user review of code changes before proceeding to Step 6.
+Verify before you report: run the lint and the tests that cover the files you
+changed, and give the caller the result.
 
 ## Step 6: Propose Responses
 
-After the user approves the code changes, propose a response plan. Present the full plan and wait for approval before executing any of it.
+Write this plan into the report. The caller gets the user's approval and runs it.
 
 ### For Implemented Threads
 - Resolve the thread: `python3 ~/.claude/skills/pr-feedback/scripts/pr_feedback.py resolve THREAD_ID`
@@ -185,7 +211,7 @@ To react to a general PR comment: `python3 ~/.claude/skills/pr-feedback/scripts/
 - Process threads in file order to keep edits coherent.
 - Annotations have no thread to resolve and no one to reply to. They clear on their own when the check re-runs against the fix, so the only action they need is the code change.
 - When multiple comments touch the same file, read the file once and process them together.
-- Do not commit changes or post responses automatically. Present everything for user review first.
+- Never commit, push, or post. The caller does that after the user approves.
 - Outdated threads still deserve attention -- the underlying concern may still apply. Flag them as outdated in the summary.
 - If a thread has back-and-forth discussion, focus on the latest unresolved ask.
 - Respect the codebase's project instructions (CLAUDE.md) when evaluating comments.
