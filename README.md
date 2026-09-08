@@ -23,6 +23,7 @@ The assistant will automatically detect skills placed in `~/.claude/skills/` on 
 |-------|-------------|
 | [pr-feedback](pr-feedback/) | Fetch and address PR review feedback, CI failures, and bot-generated reviews |
 | [postgres](postgres/) | Read-only PostgreSQL querying, schema introspection, and query planning |
+| [redis](redis/) | Read-only Redis / ElastiCache querying, key inspection, and cache debugging |
 | [asana](asana/) | Asana task CRUD (list/get/create/update) via an installable `asana` CLI |
 | [concise-writing](concise-writing/) | Simplified Technical English (ASD-STE100) style with per-artifact budgets, enforced by a blocking PreToolUse hook |
 | [backlog-grooming](backlog-grooming/) | Groom a Jira or Asana backlog against the codebase and git history; propose-only |
@@ -131,6 +132,34 @@ Database connection URIs are configured per-project in `CLAUDE.local.md` (gitign
 - `psql` (PostgreSQL client tools)
 - Python 3.6+
 - Database aliases in a `pg-databases` block in the project's `CLAUDE.local.md`
+
+
+## redis
+
+Read-only access to Redis / ElastiCache instances. Every command passes through a single choke point that checks the resolved command name, and its subcommand for container commands like `CONFIG` or `CLIENT`, against a hard allowlist of read-only commands. Anything else is rejected before a connection is opened. This is client-side enforcement; for a hard guarantee connect as a Redis ACL user limited to `+@read`.
+
+Instance URLs are configured per-project in `CLAUDE.local.md` (gitignored) inside a `` ```redis-instances``` `` fenced code block. Each line is `alias=url` plus optional `tls=skip` (managed nodes addressed by IP) and `db=N` options. The script resolves aliases internally so credentials never appear on the command line; with the `redis-cli` backend the password travels through `REDISCLI_AUTH`.
+
+### Subcommands
+
+    python3 ~/.claude/skills/redis/scripts/redis_query.py list
+    python3 ~/.claude/skills/redis/scripts/redis_query.py info <alias> [--section memory] [--full]
+    python3 ~/.claude/skills/redis/scripts/redis_query.py dbsize <alias>
+    python3 ~/.claude/skills/redis/scripts/redis_query.py scan <alias> '<pattern>' [--limit N] [--type hash]
+    python3 ~/.claude/skills/redis/scripts/redis_query.py get <alias> <key> [--limit N]
+    python3 ~/.claude/skills/redis/scripts/redis_query.py ttl <alias> <key>
+    python3 ~/.claude/skills/redis/scripts/redis_query.py memory <alias> <key>
+    python3 ~/.claude/skills/redis/scripts/redis_query.py slowlog <alias> [--limit N]
+    python3 ~/.claude/skills/redis/scripts/redis_query.py clients <alias> [--limit N]
+    python3 ~/.claude/skills/redis/scripts/redis_query.py cmd <alias> [--db N] LLEN celery
+
+`scan` is cursor-based and never issues `KEYS`; `get` is type-aware and reads large collections with `HSCAN`/`SSCAN`. All subcommands accept `--db N`, `--timeout SECONDS`, and `--backend {auto,redis-py,redis-cli}`.
+
+### Requirements
+
+- Python 3.6+
+- The `redis` Python package or `redis-cli` on PATH (auto-detected)
+- Instance aliases in a `redis-instances` block in the project's `CLAUDE.local.md`
 
 
 ## asana
