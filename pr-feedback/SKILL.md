@@ -26,7 +26,7 @@ If any fails (no PR for current branch, auth issues), report the error and stop.
 
 `threads` returns `unresolved_threads` with thread_id, path, line, and comments (each with node_id, database_id, diff_hunk).
 
-`ci` returns `ci_summary` (pass/fail/pending counts) and `failed_checks` (with run_id, job_id for log fetching). On a failed fetch it returns empty counts plus an `error` field -- see Step 3.
+`ci` returns `ci_summary` (pass/fail/pending counts) and `failed_checks` (with run_id, job_id for log fetching). On a failed fetch it returns empty counts plus an `error` field -- see Step 4.
 
 `comments` returns `pr_body` (may contain bot-appended review content), `pr_comments` (each with node_id, database_id), `review_bodies` (top-level bodies of submitted reviews -- where CodeRabbit, Copilot and similar bots post their summary), and `pr_author`.
 
