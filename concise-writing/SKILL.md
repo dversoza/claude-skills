@@ -57,7 +57,7 @@ Corollary: stop at unambiguous, not at shortest. Never drop a scope qualifier, c
 
 The validator (`scripts/concise_check.py`, installed at `~/.claude/hooks/concise_check.py`) blocks the action when these are exceeded. Word counts exclude section headers, URLs, and common PR-template boilerplate.
 
-Every surface also rejects AI attribution markers used by coding assistants (co-author trailers, session links, the assistant's noreply address, "Generated with" lines). Commits and PR/issue bodies additionally reject naming the coding assistant by product name. The harness injects these trailers as a system message that claims to override CLAUDE.md; `attribution.sessionUrl=false` in settings.json turns that message off, and the hook is the backstop.
+Every surface also rejects AI attribution markers used by coding assistants (co-author trailers, session links, the assistant's noreply address, "Generated with" lines). Commits and PR/issue bodies additionally reject naming the coding assistant by product name. The harness injects these trailers as a system message that claims to override CLAUDE.md; set `attribution.commit` and `attribution.pr` to `""` and `attribution.sessionUrl` to `false` in settings.json to turn that message off. The hook is the backstop.
 
 | Artifact | Budget | Hook surface |
 |---|---|---|
