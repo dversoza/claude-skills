@@ -77,25 +77,22 @@ was actually charged, which is the honest figure to project from rather than a
 published tier price.
 
 The account's real backstop is the monthly spending limit, not any in-app cap.
-The billing cycle is not the calendar month: it runs from the 17th to the 17th
-(Aug 17 to Sep 17, 2026). A month-to-date query undercounts the cycle, so start
-the window on the 17th:
+The billing cycle may not match the calendar month: find your cycle's start
+date in the Zyte dashboard, and start the window there instead of at the
+1st, or a month-to-date query undercounts the cycle:
 
 ```bash
-python3 ~/.claude/skills/zyte-api/scripts/zyte_stats.py --start 2026-08-17T00:00:00Z usage
+python3 ~/.claude/skills/zyte-api/scripts/zyte_stats.py --start YYYY-MM-DDT00:00:00Z usage
 ```
 
 The limit is a fixed amount set in the dashboard. Zyte emails the account
-owner when it is reached and suspends the key until the next cycle starts or
-someone raises the limit. When it is reached Zyte suspends the account and
-every request returns
+owner when it is reached, suspends the key until the next cycle starts or
+someone raises the limit, and every request then returns
 `/auth/account-suspended`, which aborts scraper runs immediately. `key-check`
-tells those apart: a live key with failing scrapes is a blocked target, a
-rejected key is a billing problem.
+tells the two failure modes apart: a live key with failing scrapes is a
+blocked target, a rejected key is a billing problem.
 
-Requests counted here are HTTP calls to Zyte. The scrapers' own
-`zyte_requests` counter increments once per logical request and does not count
-internal retries, so it reads about 1 percent lower than this API.
+Requests counted here are HTTP calls to Zyte.
 
 ## Rate limit
 

@@ -197,7 +197,7 @@ Instance URLs are configured per-project in `CLAUDE.local.md` (gitignored) insid
 
 ## zyte-api
 
-Read-only usage, cost, and health reporting against the Zyte Stats API. Every subcommand issues GET requests, so it cannot spend credits or change account settings; the one exception, `key-check`, sends a single request to httpbin.org to prove the key is live without spending credits on a real target.
+Read-only usage, cost, and health reporting against the Zyte Stats API. Every subcommand issues GET requests, so it cannot spend credits or change account settings; the one exception, `key-check`, bills one request against httpbin.org, not a real scrape target, to prove the key is live.
 
 Credentials come from a `` ```zyte-api``` `` fenced code block in the project's `CLAUDE.local.md` (gitignored), with an API key, a separate dashboard key for the Stats API, and an org id.
 
@@ -211,7 +211,7 @@ Credentials come from a `` ```zyte-api``` `` fenced code block in the project's 
 
 ### Requirements
 
-- Python 3.6+, stdlib only
+- Python 3.7+, stdlib only
 - A `zyte-api` block with `api_key`, `dashboard_api_key`, and `org_id` in the project's `CLAUDE.local.md`
 
 
