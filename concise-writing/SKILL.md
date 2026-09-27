@@ -1,6 +1,6 @@
 ---
 name: concise-writing
-description: "Enforced concise style for everything the assistant writes: PR descriptions, commit messages, code comments, PR reviews and replies, tickets, chat messages, and docs. Simplified Technical English (adapted from ASD-STE100) plus hard per-artifact budgets, enforced by a blocking PreToolUse hook (scripts/concise_check.py). Use when writing or rewriting any of these artifacts, when a hook denial asks for a rewrite, or on requests like 'make this concise', 'STE rewrite', 'less verbose'."
+description: "Mandatory style for everything written on the user's behalf: PR descriptions, commit messages, code comments, PR reviews and replies, Linear tickets, Slack messages, docs, and chat output. Simplified Technical English (adapted from ASD-STE100) plus hard per-artifact budgets, enforced by a blocking PreToolUse hook (scripts/concise_check.py). Use when writing or rewriting any of these artifacts, when a hook denial asks for a rewrite, or on requests like 'make this concise', 'STE rewrite', 'less verbose'."
 ---
 
 # Concise Writing (STE + budgets)
@@ -9,7 +9,7 @@ Verbose generated text is a review tax: reviewers skim PR descriptions, tickets,
 
 ## Source and scope
 
-Adapted from the asd-ste100 skill (https://github.com/danyuchn/asd-ste100-skill), which encodes the rule categories of ASD-STE100 Issue 9 (Jan 2025): 53 writing rules across 9 sections, backed by a dictionary of ~900 approved words (one meaning, one part of speech each). The dictionary is not free to redistribute and is not reproduced here; request it at https://www.asd-ste100.org/STE_downloads.html. Apply the underlying principle instead: pick the plainest common word and use it the same way every time.
+Adapted from the asd-ste100 skill (https://github.com/danyuchn/asd-ste100-skill), which encodes the rule categories of ASD-STE100 Issue 9 (Jan 2025): 53 writing rules across 9 sections, backed by a dictionary of ~900 approved words (one meaning, one part of speech each). The dictionary is not free to redistribute and is not reproduced here; request it at https://www.asd-ste100.org/STE_downloads.html. A local copy of the full standard can live at references/ASD-STE100_ISSUE9.pdf in this skill directory (400+ pages, local reference only; gitignored here, never commit or publish it). Apply the underlying principle instead: pick the plainest common word and use it the same way every time; consult the PDF only when exact approved wording matters.
 
 Read before rewriting anything non-trivial:
 - `references/writing-rules.md` - the 9 rule sections summarized, with citations and official links.
@@ -57,11 +57,11 @@ Corollary: stop at unambiguous, not at shortest. Never drop a scope qualifier, c
 
 The validator (`scripts/concise_check.py`, installed at `~/.claude/hooks/concise_check.py`) blocks the action when these are exceeded. Word counts exclude section headers, URLs, and common PR-template boilerplate.
 
-Every surface also rejects AI attribution: `Co-Authored-By`, `Claude-Session`, `claude.ai/code/session` links, `noreply@anthropic.com`, "Generated with Claude". Commits and PR/issue bodies additionally reject the words "Claude Code". Claude Code 2.1.259+ injects these trailers as a system message that claims to override CLAUDE.md; set `attribution.commit` and `attribution.pr` to `""` and `attribution.sessionUrl` to `false` in settings.json to turn that message off. The hook is the backstop.
+Every surface also rejects AI attribution markers used by coding assistants (co-author trailers, session links, the assistant's noreply address, "Generated with" lines). Commits and PR/issue bodies additionally reject naming the coding assistant by product name. The harness injects these trailers as a system message that claims to override CLAUDE.md; set `attribution.commit` and `attribution.pr` to `""` and `attribution.sessionUrl` to `false` in settings.json to turn that message off. The hook is the backstop.
 
 | Artifact | Budget | Hook surface |
 |---|---|---|
-| Commit | conventional `type(scope): subject`; subject <=50 chars imperative (trailing `[AKT-NNNN]` excluded); body optional, <=6 lines x 72 chars; no AI attribution (see above) | `git commit` (-m, -F, heredoc) |
+| Commit | conventional `type(scope): subject`; subject <=50 chars imperative (trailing ticket id excluded); body optional, <=6 lines x 72 chars; no AI attribution (see above) | `git commit` (-m, -F, heredoc) |
 | PR / issue body | keep your repo's PR template sections; <=150 words; <=6 bullets; no nesting; no bold | `gh pr create/edit`, `gh issue create` |
 | PR review summary | <=3 sentences | `gh pr review`, `gh api .../reviews` |
 | Inline review / PR / issue comment | 1-2 lines, <=60-80 words | `gh pr comment`, `gh issue comment`, `gh api` comments[] |
@@ -77,7 +77,7 @@ Not gated (style still applies): chat output (covered by `~/.claude/output-style
 ## On a hook denial
 
 1. Read the listed violations.
-2. Cut content, not precision: drop restatements, background the reader has, and anything the diff already shows. Keep Linear URLs, ticket IDs, and reviewer-critical warnings (breaking change, migration, deploy step) as one line each.
+2. Cut content, not precision: drop restatements, background the reader has, and anything the diff already shows. Keep ticket URLs, ticket IDs, and reviewer-critical warnings (breaking change, migration, deploy step) as one line each.
 3. Retry the same action with the shortened text. Do not switch to an ungated path to avoid the check.
 
 ## Installation

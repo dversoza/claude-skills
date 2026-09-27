@@ -25,6 +25,7 @@ The assistant will automatically detect skills placed in `~/.claude/skills/` on 
 | [postgres](postgres/) | Read-only PostgreSQL querying, schema introspection, and query planning |
 | [opensearch](opensearch/) | Read-only OpenSearch/Elasticsearch querying, index introspection, and search DSL execution |
 | [redis](redis/) | Read-only Redis / ElastiCache querying, key inspection, and cache debugging |
+| [zyte-api](zyte-api/) | Read-only Zyte API usage, cost, and health reporting via the Stats API |
 | [asana](asana/) | Asana task CRUD (list/get/create/update) via an installable `asana` CLI |
 | [concise-writing](concise-writing/) | Simplified Technical English (ASD-STE100) style with per-artifact budgets, enforced by a blocking PreToolUse hook |
 | [backlog-grooming](backlog-grooming/) | Groom a Jira or Asana backlog against the codebase and git history; propose-only |
@@ -192,6 +193,26 @@ Instance URLs are configured per-project in `CLAUDE.local.md` (gitignored) insid
 - Python 3.6+
 - The `redis` Python package or `redis-cli` on PATH (auto-detected)
 - Instance aliases in a `redis-instances` block in the project's `CLAUDE.local.md`
+
+
+## zyte-api
+
+Read-only usage, cost, and health reporting against the Zyte Stats API. Every subcommand issues GET requests, so it cannot spend credits or change account settings; the one exception, `key-check`, bills one request against httpbin.org, not a real scrape target, to prove the key is live.
+
+Credentials come from a `` ```zyte-api``` `` fenced code block in the project's `CLAUDE.local.md` (gitignored), with an API key, a separate dashboard key for the Stats API, and an org id.
+
+### Subcommands
+
+    python3 ~/.claude/skills/zyte-api/scripts/zyte_stats.py usage
+    python3 ~/.claude/skills/zyte-api/scripts/zyte_stats.py --start <ISO8601> --group-by hour usage
+    python3 ~/.claude/skills/zyte-api/scripts/zyte_stats.py --by-domain usage
+    python3 ~/.claude/skills/zyte-api/scripts/zyte_stats.py --days 1 estimate <request_count>
+    python3 ~/.claude/skills/zyte-api/scripts/zyte_stats.py key-check
+
+### Requirements
+
+- Python 3.7+, stdlib only
+- A `zyte-api` block with `api_key`, `dashboard_api_key`, and `org_id` in the project's `CLAUDE.local.md`
 
 
 ## asana
