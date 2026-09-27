@@ -134,7 +134,7 @@ def _number(value):
 def _summarize(row):
     cost = _number(row.get("cost_microusd_total"))
     summary = {
-        "requests": row.get("request_count"),
+        "requests": _number(row.get("request_count")),
         "cost_usd": round(cost / MICRO_USD, 4) if cost is not None else None,
     }
     for key in ("time", "domain"):
@@ -145,9 +145,9 @@ def _summarize(row):
         summary["cost_per_1k_usd"] = round(average / MICRO_USD * 1000, 4)
     if row.get("status_codes"):
         codes = row["status_codes"]
-        summary["status_codes"] = {str(c["code"]): c["count"] for c in codes}
-        billed = sum(c["count"] for c in codes if c["code"] == 200)
-        summary["free_responses"] = row.get("request_count", 0) - billed
+        summary["status_codes"] = {str(c["code"]): _number(c["count"]) for c in codes}
+        billed = sum(_number(c["count"]) for c in codes if c["code"] == 200)
+        summary["free_responses"] = (_number(row.get("request_count")) or 0) - billed
     latency = _number(row.get("response_time_sec_avg"))
     if latency is not None:
         summary["response_time_sec_avg"] = round(latency, 2)
@@ -175,7 +175,7 @@ def cmd_usage(args, credentials):
 def cmd_estimate(args, credentials):
     """Project a run's cost from its request count at the observed rate."""
     rows, start, end = _fetch_rows(args, credentials)
-    requests = sum(r.get("request_count") or 0 for r in rows)
+    requests = sum(_number(r.get("request_count")) or 0 for r in rows)
     cost = sum(_number(r.get("cost_microusd_total")) or 0 for r in rows) / MICRO_USD
     if not requests:
         _die("No requests in the window, so there is no observed rate to project from.")
@@ -216,6 +216,8 @@ def cmd_key_check(args, credentials):
         detail = exc.read().decode()[:200]
         print(json.dumps({"api_key": "rejected", "status": exc.code, "detail": detail}, indent=2))
         sys.exit(1)
+    except urllib.error.URLError as exc:
+        _die(f"Cannot reach the Zyte extract API: {exc.reason}")
 
 
 def main():
